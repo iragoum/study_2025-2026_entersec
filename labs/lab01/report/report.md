@@ -1,0 +1,395 @@
+---
+title: "Отчёт о расследовании инцидента информационной безопасности"
+subtitle: "Лабораторная работа: Защита научно-технической информации предприятия"
+author: |
+  | Мугари Абдеррахим
+  | Королёв Иван 
+  | Кудряшов Артём
+  | Ощепков Дмитрий
+  | Оганнисян Давит
+  | Шуплецов Александр
+
+## Generic otions
+lang: ru-RU
+toc-title: "Содержание"
+
+## Bibliography
+bibliography: bib/cite.bib
+csl: pandoc/csl/gost-r-7-0-5-2008-numeric.csl
+
+## Pdf output format
+toc: true # Table of contents
+toc-depth: 2
+lof: true # List of figures
+lot: true # List of tables
+fontsize: 12pt
+linestretch: 1.5
+papersize: a4
+documentclass: scrreprt
+## I18n polyglossia
+polyglossia-lang:
+  name: russian
+  options:
+	- spelling=modern
+	- babelshorthands=true
+polyglossia-otherlangs:
+  name: english
+## I18n babel
+babel-lang: russian
+babel-otherlangs: english
+## Fonts
+mainfont: IBM Plex Serif
+romanfont: IBM Plex Serif
+sansfont: IBM Plex Sans
+monofont: IBM Plex Mono
+mathfont: STIX Two Math
+mainfontoptions: Ligatures=Common,Ligatures=TeX,Scale=0.94
+romanfontoptions: Ligatures=Common,Ligatures=TeX,Scale=0.94
+sansfontoptions: Ligatures=Common,Ligatures=TeX,Scale=MatchLowercase,Scale=0.94
+monofontoptions: Scale=MatchLowercase,Scale=0.94,FakeStretch=0.9
+mathfontoptions:
+## Biblatex
+biblatex: true
+biblio-style: "gost-numeric"
+biblatexoptions:
+  - parentracker=true
+  - backend=biber
+  - hyperref=auto
+  - language=auto
+  - autolang=other*
+  - citestyle=gost-numeric
+## Pandoc-crossref LaTeX customization
+figureTitle: "Рис."
+tableTitle: "Таблица"
+listingTitle: "Листинг"
+lofTitle: "Список иллюстраций"
+
+lotTitle: "Список таблиц"
+lolTitle: "Листинги"
+## Misc options
+indent: true
+header-includes:
+  - \usepackage{indentfirst}
+  - \usepackage{float} # keep figures where there are in the text
+  - \floatplacement{figure}{H} # keep figures where there are in the text
+---
+
+# Введение
+
+## Цель работы
+
+Исследовать и задокументировать инцидент информационной безопасности в корпоративной инфраструктуре компании AMPIRE, выявить уязвимости и предложить меры по их устранению.
+
+## Описание инфраструктуры
+
+Инфраструктура компании AMPIRE включает:
+
+- Developer Workstation (10.10.4.13) - рабочее место разработчика dev1
+
+- Manager Workstation (10.10.4.11) - рабочее место менеджера
+
+- File Server (10.10.2.12) - файловый сервер
+
+- Redmine Server (10.10.2.15) - сервер управления проектами
+
+- Internal Router (10.10.2.254) - внутренний маршрутизатор
+
+На (рис. [-@fig:001]) представлена схема сети компании.
+
+![Схема сети AMPIRE](image/1.png){#fig:001 width=100%}
+
+# Ход расследования
+
+## Этап 1: Начальная компрометация
+
+### Обнаружение подозрительной активности
+
+При анализе событий ViPNet IDS были обнаружены подозрительные попытки подключения с узла 10.10.4.13 (Developer Workstation) к узлу 10.10.4.11 (Manager Workstation) (рис. [-@fig:002]).
+
+![События в ViPNet IDS - попытки подключения](image/2.jpg){#fig:002 width=90%}
+
+### Анализ логов аутентификации
+
+Проверка журналов ViPNet IDS NS показала множественные попытки входа (рис. [-@fig:003]):
+
+![ViPNet IDS NS](image/3.jpg){#fig:003 width=90%}
+
+**Обнаружено:**
+- Множественные неудачные попытки входа
+- Успешный вход после серии неудачных попыток
+- Источник: 10.10.4.13 (Developer Workstation)
+- Цель: 10.10.4.11 (Manager Workstation)
+
+## Этап 2: Lateral Movement и установка backdoor
+
+### Загрузка вредоносных файлов
+
+После успешной компрометации Manager Workstation, с неё были загружены файлы на File Server (рис. [-@fig:004]):
+
+![Загрузка файлов на File Server через SMB](image/4.png){#fig:004 width=150%}
+
+**Загруженные файлы:**
+- bcdoor.exe (backdoor)
+- legacy.exe (LaZagne - инструмент для кражи паролей)
+- Вредоносный .bat файл
+
+### Создание персистентности
+
+На Developer Workstation была обнаружена задача в планировщике (рис. [-@fig:005]):
+
+![Планировщик задач - Evil task](image/5.png){#fig:005 width=100%}
+
+**Параметры задачи:**
+- Название: "Evil task"
+- Запуск: каждые 5 минут
+
+
+### Кража учетных данных
+
+Запуск LaZagne для извлечения сохраненных паролей (рис. [-@fig:006]):
+
+![Вывод LaZagne с паролями](image/6.png){#fig:006 width=100%}
+
+**Извлеченные данные:**
+```
+URL: http://redmine.ampire.corp/
+Username: dev1
+Password: qwe123!@#
+```
+
+## Этап 3: Атака XSS на Redmine (CVE-2019-17427)
+
+### Внедрение вредоносного кода
+
+С Manager Workstation была проведена XSS атака на Redmine. На (рис. [-@fig:007]) показана wiki страница с внедренным payload:
+
+![Wiki страница с XSS payload](image/7.png){#fig:007 width=100%}
+
+Исходный код страницы с вредоносным JavaScript представлен на (рис. [-@fig:009]):
+
+![Исходный код страницы с вредоносным JavaScript](image/9.png){#fig:009 width=100%}
+
+**XSS Payload:**
+```html
+<pre onfocusin="let xhr=new XMLHttpRequest;
+xhr.onreadystatechange=function(){
+  if(4===xhr.readyState){
+    // Извлечение CSRF токена
+    // Создание admin пользователя "hacker"
+    // Включение REST API
+  }
+},
+xhr.open('GET','http://redmine.ampire.corp/settings?tab=api'),
+xhr.send();" tabindex=1>
+```
+
+### Результат XSS атаки
+
+После срабатывания XSS при посещении страницы администратором были получены следующие результаты (рис. [-@fig:010], [-@fig:011]):
+
+![Включенный REST API в настройках Redmine](image/10.png){#fig:010 width=100%}
+
+![Созданный пользователь hacker с правами администратора](image/11.png){#fig:011 width=70%}
+
+**Созданный пользователь:**
+- Login: hacker
+- Email: hacker@hacker.ru
+- Права: Administrator
+- REST API: Enabled
+
+## Этап 4: SQL Injection (CVE-2019-18890)
+
+### Эксплуатация Blind SQL Injection
+
+Используя REST API, была проведена Blind SQL инъекция. HTTP запрос с инъекцией показан на (рис. [-@fig:012]):
+
+![HTTP запрос с SQL injection в параметре subproject_id](image/12.png){#fig:012 width=70%}
+
+**Техника атаки:**
+```
+GET /issues.xml?project_id=1&subproject_id=1;SELECT+SLEEP(2)
+
+Посимвольное извлечение данных:
+- Если символ верный → задержка 2 секунды
+- Если символ неверный → быстрый ответ
+```
+
+# Анализ с помощью средств мониторинга
+
+## ViPNet IDS NS
+
+### Обнаруженные события
+
+Общий список событий в ViPNet IDS представлен на (рис. [-@fig:013]):
+
+![Общий список событий в ViPNet IDS](image/13.png){#fig:013 width=70%}
+
+**Критические события:**
+- ET ATTACK_RESPONSE LaZagne Artifact Outbound
+- AM EXPLOIT Possible Redmine < v4.0.4 XSS (CVE-2019-17427)
+- ET WEB_SERVER SQL Injection Select Sleep Time Delay
+
+
+# Устранение уязвимостей
+
+## Уязвимость 1: Слабый пароль
+
+### Изменение пароля в Active Directory
+
+Процесс сброса пароля пользователя в Active Directory показан на (рис. [-@fig:014]):
+
+![Active Directory - сброс пароля пользователя](image/14.png){#fig:014 width=70%}
+
+
+## Уязвимость 2: XSS (CVE-2019-17427)
+
+### Исправление в коде Redmine
+
+Файл redcloth3.rb до исправления показан на (рис. [-@fig:015]):
+
+![Файл redcloth3.rb до исправления](image/9.png){#fig:015 width=70%}
+
+Процесс внесения изменений в redcloth3.rb представлен на (рис. [-@fig:016]):
+
+![Внесение изменений в redcloth3.rb](image/16.png){#fig:016 width=70%}
+
+**Код исправления:**
+```ruby
+ALLOWED_TAGS = %w(redpre pre code kbd notextile)
+def escape_html_tags(text)
+  text.gsub!(%r{<(\/?([!\w]+)[^<>\n]*)(>?)}) do |m|
+    if ALLOWED_TAGS.include?($2) && $3.present?
+      "<#{$1}#{$3}"
+    else
+      "&lt;#{$1}#{'&gt;' unless $3.blank?}"
+    end
+  end
+end
+```
+
+### Перезапуск сервера
+- После внесения изменений необходимо было перезапустить службу веб сервера (рис. [-@fig:017]):
+
+![Перезапуск сервера](image/17.png){#fig:017 width=70%}
+
+## Уязвимость 3: SQL Injection (CVE-2019-18890)
+
+### Исправление в query.rb
+
+Файл query.rb с уязвимым кодом представлен на (рис. [-@fig:018]):
+
+![Файл query.rb с уязвимым кодом](image/18.png){#fig:018 width=100%}
+
+Исправленный код показан на (рис. [-@fig:019]):
+
+![Исправленный код](image/19.png){#fig:019 width=100%}
+
+```ruby
+
+sudo nano /var/www/redmine/app/models/query.rb
+```
+- Нашли строку:
+```ruby
+   ids = [project.id] + values_for(column.name).map(&:to_i)
+```
+- Закомментировали ее:
+```ruby
+
+   # ids = [project.id] + values_for(column.name).map(&:to_i)
+```
+
+## Удаление последствий
+
+### Удаление backdoor
+
+Процесс удаления задачи из планировщика показан на (рис. [-@fig:020]):
+
+![Удаление задачи из планировщика](image/20.png){#fig:020 width=70%}
+
+```cmd
+schtasks /delete /tn "Evil task" /F
+del C:\Users\dev1\Downloads\svchosting.exe /F
+del C:\Users\dev1\Downloads\legacy.exe /F
+```
+
+### Удаление пользователя hacker
+
+Удаление пользователя hacker из Redmine показано на (рис. [-@fig:021]):
+
+![Удаление пользователя hacker из Redmine](image/21.png){#fig:021 width=70%}
+
+### Отключение REST API
+
+Процесс отключения REST API в настройках представлен на (рис. [-@fig:022]):
+
+![Отключение REST API в настройках](image/22.png){#fig:022 width=100%}
+
+# Рекомендации
+
+## Немедленные меры
+
+1. **Изоляция скомпрометированных узлов:**
+   - 10.10.4.13 (Developer Workstation)
+   - 10.10.4.11 (Manager Workstation)
+   - 10.10.2.254 (Internal Router - требует проверки)
+
+2. **Сброс всех паролей:**
+   - Учетные записи Active Directory
+   - Пароли приложений (Redmine, email, VPN)
+   - Сервисные учетные записи
+
+3. **Форензика:**
+   - Создание образов дисков
+   - Сбор логов для расследования
+   - Анализ сетевого трафика
+
+## Долгосрочные меры
+
+### Организационные меры
+
+1. **Усиление процедур найма:**
+   - Тщательная проверка кандидатов
+   - Background check
+   - Проверка рекомендаций
+
+2. **Security Awareness Training:**
+   - Обучение персонала
+   - Регулярные тренинги
+   - Симуляции атак
+
+3. **Incident Response Plan:**
+   - Документированные процедуры
+   - Назначенные роли
+   - Регулярные учения
+
+# Заключение
+
+В ходе лабораторной работы был успешно расследован инцидент информационной безопасности в инфраструктуре AMPIRE (рис. [-@fig:023]). 
+
+![успешно расследован инцидент информационной безопасности в инфраструктуре AMPIRE](image/23.jpg){#fig:023 width=70%}
+
+
+Атака представляла собой сложную многоэтапную операцию, включающую:
+
+1. **Insider threat** - инсайдер dev1 с рабочей станции 10.10.4.13
+2. **Lateral movement** - компрометация Manager Workstation для использования как pivot point
+3. **Dead drop механизм** - использование File Server для обмена данными
+
+Все выявленные уязвимости были успешно устранены, вредоносное ПО удалено, несанкционированные учетные записи заблокированы. Предложенные рекомендации позволят предотвратить подобные инциденты в будущем.
+
+## Выводы
+
+1. Критически важно внедрение многоуровневой защиты.
+2. Необходим постоянный мониторинг insider threats
+3. Своевременное обновление ПО предотвращает эксплуатацию известных уязвимостей
+4. Корреляция событий из разных источников позволяет выявлять сложные атаки
+5. Human factor остается слабым звеном в системе безопасности
+
+# Список использованных инструментов
+
+- ViPNet IDS NS - обнаружение вторжений
+- ViPNet TIAS - корреляция событий
+- Security Onion (Kibana, Squert) - анализ сетевого трафика
+- Wireshark - анализ пакетов
+- Active Directory - управление учетными записями
+- Планировщик задач Windows - поиск персистентности
